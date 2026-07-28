@@ -1,0 +1,5 @@
+menuentry "Rocky Server Autoinstall" --class rocky --class gnu-linux --class gnu --class os {
+    set     gfxpayload=keep
+    linux   /images/pxeboot/vmlinuz inst.stage2=hd:LABEL=@VOLID@ inst.ks=cdrom:/ks.cfg inst.text quiet
+    initrd  /images/pxeboot/initrd.img
+}
