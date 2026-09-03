@@ -268,14 +268,6 @@ line when installing over the network.
   through `/boot/grub2/grub.cfg` and `/EFI/BOOT/grub.cfg`, and the ISO carries
   `/images/eltorito.img` as its El Torito BIOS image with
   `/images/efiboot.img` as an embedded alt-boot entry for UEFI.
-- **Open vSwitch is not on the DVD.** It is absent from Rocky BaseOS and
-  AppStream, living instead in the CentOS NFV SIG repo, so it has to be
-  installed after the fact:
-
-  ```bash
-  dnf install centos-release-nfv-openvswitch
-  dnf install openvswitch3.5
-  ```
 
 ## Troubleshooting
 
