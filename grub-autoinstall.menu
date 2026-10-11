@@ -1,5 +1,22 @@
+# Follow the boot medium: GRUB's $root is the device it booted from, e.g. cd0
+# for an optical drive.  Optical -> entry 0 (inst.ks=cdrom:), anything else
+# (USB stick) -> entry 1 (inst.ks=hd:LABEL=).  Indented on purpose so the
+# Makefile's "^set default=" rewrite leaves it alone.
+insmod regexp
+if regexp '^cd' "$root"; then
+    set default="0"
+else
+    set default="1"
+fi
+
 menuentry "Rocky Server Autoinstall" --class rocky --class gnu-linux --class gnu --class os {
     set     gfxpayload=keep
     linux   /images/pxeboot/vmlinuz inst.stage2=hd:LABEL=@VOLID@ inst.ks=cdrom:/ks.cfg inst.text quiet
+    initrd  /images/pxeboot/initrd.img
+}
+
+menuentry "Rocky Server Autoinstall (USB)" --class rocky --class gnu-linux --class gnu --class os {
+    set     gfxpayload=keep
+    linux   /images/pxeboot/vmlinuz inst.stage2=hd:LABEL=@VOLID@ inst.ks=hd:LABEL=@VOLID@:/ks.cfg inst.text quiet
     initrd  /images/pxeboot/initrd.img
 }

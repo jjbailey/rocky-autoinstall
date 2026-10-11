@@ -7,6 +7,7 @@ ISO     := Rocky-$(VERSION)-$(ARCH)-dvd1.iso
 ISO_URL := https://download.rockylinux.org/pub/rocky/$(MAJOR)/isos/$(ARCH)/$(ISO)
 ISODIR  := rocky-$(VERSION)-autoinstall
 NEWISO  := $(ISODIR).iso
+NEWIMG  := $(ISODIR).img
 SRC     := $(ISODIR)/source-files
 PROJECT_HOME := $(CURDIR)
 
@@ -26,7 +27,7 @@ ISO_DEPS  := curl xorriso
 SEED_DEPS := mkfs.vfat mount umount dd fsck.fat
 
 .PHONY: all check-deps check-files validate clean distclean download extract \
-        addfiles patch oemdrv
+        addfiles patch oemdrv img
 
 .NOTPARALLEL:
 
@@ -122,6 +123,15 @@ $(NEWISO): $(PATCHSTAMP) $(SRC)/ks.cfg
 		.
 
 
+# USB boot image: the xorriso output is already a BIOS+UEFI hybrid, so the
+# .img is the same bytes as the ISO.  Write it with:
+#   sudo dd if=$(NEWIMG) of=/dev/sdX bs=4M conv=fsync status=progress
+img: $(NEWIMG)
+
+$(NEWIMG): $(NEWISO)
+	ln -sf "$(NEWISO)" "$@"
+	@echo "USB image created: $@ (dd it to the stick; this destroys the stick's contents)"
+
 oemdrv: $(OEMDRV)
 
 $(OEMDRV): $(KS)
@@ -149,7 +159,7 @@ $(OEMDRV): $(KS)
 	@echo "OEMDRV kickstart seed image created: $(OEMDRV)"
 
 clean:
-	rm -rf $(ISODIR) $(NEWISO) $(OEMDRV)
+	rm -rf $(ISODIR) $(NEWISO) $(NEWIMG) $(OEMDRV)
 
 distclean: clean
 	rm -f $(ISO)
