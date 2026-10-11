@@ -3,6 +3,7 @@
 This project simplifies the creation of:
 
 - A custom Rocky Linux Autoinstall ISO for fully automated installations
+- A USB boot image (`.img`) with the same capabilities as the ISO
 - A VFAT-formatted `OEMDRV` image holding a Kickstart file, which Anaconda
   picks up automatically with no kernel arguments
 
@@ -17,6 +18,7 @@ boots versus what merely gets read.
 - Automatic dependency checks for ISO builds and required-file checks
 - Customizable GRUB menu, applied to both the BIOS and the UEFI GRUB config
 - Non-interactive scripts: controlled entirely via `make`
+- USB boot image from the same ISO build (`make img`), ready for `dd`
 - VFAT `OEMDRV` image production using a temporary mount point
 
 ## Typical Use Cases
@@ -104,9 +106,23 @@ and the extracted tree. Shrink the `logvol` lines if you want a smaller target.
 ### Example `grub-autoinstall.menu`
 
 ```text
+# Default to the entry that matches the boot medium (optical vs. anything else)
+insmod regexp
+if regexp '^cd' "$root"; then
+    set default="0"
+else
+    set default="1"
+fi
+
 menuentry "Rocky Server Autoinstall" {
     set gfxpayload=keep
     linux /images/pxeboot/vmlinuz inst.stage2=hd:LABEL=@VOLID@ inst.ks=cdrom:/ks.cfg inst.text quiet
+    initrd /images/pxeboot/initrd.img
+}
+
+menuentry "Rocky Server Autoinstall (USB)" {
+    set gfxpayload=keep
+    linux /images/pxeboot/vmlinuz inst.stage2=hd:LABEL=@VOLID@ inst.ks=hd:LABEL=@VOLID@:/ks.cfg inst.text quiet
     initrd /images/pxeboot/initrd.img
 }
 ```
@@ -136,7 +152,43 @@ This command:
 You can boot this ISO in a virtual machine or on physical hardware for
 an unattended installation.
 
-### 2. Create the `OEMDRV` Kickstart Seed Image
+### 2. Create a USB Boot Image
+
+Run:
+
+```bash
+make img
+```
+
+**Output**: `rocky-10.2-autoinstall.img`
+
+The ISO is already a BIOS+UEFI hybrid image, so the `.img` is the same bytes
+as the ISO (it builds the ISO first if needed). Write it to a USB stick with
+`dd`, using a stick of at least 16 GB:
+
+```bash
+sudo dd if=rocky-10.2-autoinstall.img of=/dev/sdX bs=4M conv=fsync status=progress
+```
+
+Check the device name with `lsblk` first -- **this destroys everything on
+the stick**. Write the image directly; tools that re-wrap the ISO (Ventoy,
+Rufus ISO mode) can change the volume label that `inst.stage2=` depends on.
+
+**Kickstart location**: the stock menu has two autoinstall entries. The first,
+"Rocky Server Autoinstall", uses `inst.ks=cdrom:/ks.cfg`, which only searches
+optical drives. When booting from a USB stick, pick the second entry,
+"Rocky Server Autoinstall (USB)", which uses `inst.ks=hd:LABEL=@VOLID@:/ks.cfg`
+and finds the kickstart on the stick. The menu picks the default
+for you: it checks the device GRUB booted from, defaulting to the first entry
+for an optical drive (`cd0`) and to the USB entry for anything else. If it
+guesses wrong (some BMC virtual-media setups report an optical drive as USB),
+select the right entry by hand before the GRUB timeout expires.
+
+The supplied Kickstarts' `%pre` script skips removable disks, so the stick
+will not be chosen as the install target -- provided the stick reports itself
+as removable (`cat /sys/block/sdX/removable`); a few do not.
+
+### 3. Create the `OEMDRV` Kickstart Seed Image
 
 Run (requires root privileges):
 
@@ -160,7 +212,7 @@ secondary disk alongside a stock Rocky ISO:
 Attach it as a **disk**, not a floppy: modern Anaconda does not scan `/dev/fd0`
 for `OEMDRV`.
 
-### 3. Clean Up Build Artifacts
+### 4. Clean Up Build Artifacts
 
 Run:
 
@@ -171,7 +223,7 @@ make clean
 `clean` deliberately keeps the downloaded DVD so you do not have to re-fetch
 10 GB. Use `make distclean` to remove that as well.
 
-### 4. Extract Kernel/Initrd for Netboot (`kernel-extractor.sh`)
+### 5. Extract Kernel/Initrd for Netboot (`kernel-extractor.sh`)
 
 `kernel-extractor.sh` mounts a Rocky ISO (loopback) and copies out the
 kernel, initrd, and the installer root filesystem (`install.img`) — useful for
@@ -199,8 +251,10 @@ Requires root (or equivalent loopback-mount privileges) to mount the ISO.
   between `ROCKY-AUTOINSTALL-MENU-BEGIN` / `-END` comment markers and rewrites
   that block on every build, so menu edits are picked up and the entries never
   accumulate. Do not hand-edit between those markers; the next build discards
-  it. The patch rule also sets `set default="0"` so the autoinstall entry is
-  the one that boots unattended; edit `set timeout=` in the extracted
+  it. The patch rule sets `set default="0"`, and the block in
+  `grub-autoinstall.menu` then overrides it to pick the entry matching the boot
+  medium (keep that `if` block indented, or the rewrite will clobber it), so
+  the right autoinstall entry boots unattended; edit `set timeout=` in the extracted
   `grub.cfg` if 60 seconds is too long a wait.
 - **Kickstart Configuration**: Use valid Kickstart syntax in `ks.cfg`. `make`
   validates it automatically; run `make validate` on its own to check without
