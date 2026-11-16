@@ -1,10 +1,10 @@
 # Makefile: Rocky Linux Autoinstall ISO Builder & OEMDRV Kickstart Seed Image
 
 MAJOR   := 10
-VERSION := $(MAJOR).2
+VERSION := $(MAJOR).3
 ARCH    := x86_64
 ISO     := Rocky-$(VERSION)-$(ARCH)-dvd1.iso
-ISO_URL := https://download.rockylinux.org/pub/rocky/$(MAJOR)/isos/$(ARCH)/$(ISO)
+ISO_URL := https://download.rockylinux.org/pub/rocky/$(VERSION)/isos/$(ARCH)/$(ISO)
 ISODIR  := rocky-$(VERSION)-autoinstall
 NEWISO  := $(ISODIR).iso
 NEWIMG  := $(ISODIR).img
@@ -51,7 +51,8 @@ check-files:
 
 download: $(ISO)
 $(ISO):
-	curl -C - --remote-time -o "$@" "$(ISO_URL)"
+	curl --fail --location -C - --remote-time -o "$@.part" "$(ISO_URL)"
+	mv "$@.part" "$@"
 
 extract: $(SRC)/boot/grub2/grub.cfg
 

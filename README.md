@@ -48,8 +48,8 @@ EPEL) is needed.
 **Note**: `sudo` is required for `make oemdrv` to create and mount the
 image as a loop device.
 
-You also need roughly **25 GB free**: about 10 GB for the downloaded DVD, the
-same again for the extracted tree, and the rebuilt ISO on top.
+Budget roughly three times the downloaded DVD's size, plus headroom: the
+downloaded ISO, extracted tree, and rebuilt ISO coexist during a build.
 
 ## Preparation
 
@@ -81,27 +81,35 @@ and that pass as the exposure, and keep provisioning on a trusted segment.
 If you are not following that workflow, change the hash in the `user` line
 before deploying — generate a replacement with `openssl passwd -6`.
 
-The supplied Kickstarts wipe the install disk (`clearpart --all`). A `%pre`
-script picks the first fixed disk that is not the `OEMDRV` seed; set
-`ignoredisk --only-use=` explicitly if you want to pin the target. If no
-suitable disk is found the install halts with an error rather than continuing
-with no `ignoredisk` line — which would have let `clearpart --all` wipe every
-attached disk, seed image included.
+The supplied Kickstarts wipe the install disk (`clearpart --all`). Their `%pre`
+script automatically selects a disk only when exactly one eligible fixed disk
+is present; it skips removable disks and the `OEMDRV` seed. With zero or
+multiple eligible disks, installation stops before partitioning. To select a
+disk on a multi-disk machine, set `INSTALL_DISK` near the top of `%pre` in the
+Kickstart you build, for example:
+
+```sh
+INSTALL_DISK="disk/by-id/ata-MODEL_SERIAL"
+```
+
+Find the actual path under `/dev/disk/by-id/` on the target machine. Use the
+whole-disk path, not a `-partN` partition path. Do not add a separate
+`ignoredisk` command; `%pre` generates it from `INSTALL_DISK`.
 
 ### Minimum Target Disk Size
 
-The fixed logical volumes total 27 GiB before `pv.01 --grow` claims anything,
-so the **install disk** must be at least:
+The fixed logical volumes total 27 GiB before `pv.01 --grow` claims anything.
+Allow space for `/boot`, the EFI partition when applicable, and LVM metadata:
 
-| Kickstart        | Minimum target disk |
-| ---------------- | ------------------- |
-| `ks-bios.ks`     | 28 GiB              |
-| `ks-efi.ks`      | 29 GiB              |
-| `ks-bios+efi.ks` | 29 GiB (under UEFI) |
+| Kickstart        | Partition sizes before overhead |
+| ---------------- | ------------------------------- |
+| `ks-bios.ks`     | Just over 28 GiB                |
+| `ks-efi.ks`      | 29 GiB                          |
+| `ks-bios+efi.ks` | Just over 29 GiB under UEFI     |
 
-A 20 GB VM disk — a natural default — fails during partitioning. This is
-separate from the ~25 GB of scratch space the _build host_ needs for the DVD
-and the extracted tree. Shrink the `logvol` lines if you want a smaller target.
+A 30 GiB target disk gives room for that overhead; a 20 GB VM disk fails
+during partitioning. This is separate from the build host's free-space
+requirement. Shrink the `logvol` lines if you want a smaller target.
 
 ### Example `grub-autoinstall.menu`
 
@@ -147,7 +155,7 @@ This command:
 - Extracts it with `xorriso -osirrox`
 - Adds `ks.cfg` to the ISO root
 - Patches both `/boot/grub2/grub.cfg` (BIOS) and `/EFI/BOOT/grub.cfg` (UEFI)
-- Creates `rocky-10.2-autoinstall.iso` by default
+- Creates `rocky-10.3-autoinstall.iso` by default
 
 You can boot this ISO in a virtual machine or on physical hardware for
 an unattended installation.
@@ -160,14 +168,14 @@ Run:
 make img
 ```
 
-**Output**: `rocky-10.2-autoinstall.img`
+**Output**: `rocky-10.3-autoinstall.img`
 
 The ISO is already a BIOS+UEFI hybrid image, so the `.img` is the same bytes
 as the ISO (it builds the ISO first if needed). Write it to a USB stick with
 `dd`, using a stick of at least 16 GB:
 
 ```bash
-sudo dd if=rocky-10.2-autoinstall.img of=/dev/sdX bs=4M conv=fsync status=progress
+sudo dd if=rocky-10.3-autoinstall.img of=/dev/sdX bs=4M conv=fsync status=progress
 ```
 
 Check the device name with `lsblk` first -- **this destroys everything on
@@ -240,9 +248,10 @@ Requires root (or equivalent loopback-mount privileges) to mount the ISO.
 ## Customization
 
 - **Rocky Release**: Edit `MAJOR` and `VERSION` in the `Makefile`. The current
-  default is `10` / `10.2`.
-- **Volume Label**: `VOLID` defaults to `Rocky-10-2-x86_64-dvd`, matching the
-  stock ISO. Anaconda finds its stage2 by this label, so if you change it the
+  default is `10` / `10.3`. This build requires the public 10.3 DVD ISO to be
+  available at the URL in `ISO_URL`; until then, `make` stops at the download.
+- **Volume Label**: `VOLID` defaults to `Rocky-10-3-x86_64-dvd`. Anaconda finds
+  its stage2 by this label, so if you change it the
   `patch` rule rewrites every `inst.stage2=hd:LABEL=` in both GRUB configs to
   match. Labels are capped at 32 characters.
 - **GRUB Menu**: Modify `grub-autoinstall.menu` to add or edit GRUB menu
