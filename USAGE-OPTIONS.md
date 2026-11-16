@@ -54,9 +54,10 @@ cp ks-bios+efi.ks ks.cfg
 make
 ```
 
-Produces `rocky-10.2-autoinstall.iso` with `ks.cfg` at the ISO root and both
+Produces `rocky-10.3-autoinstall.iso` with `ks.cfg` at the ISO root and both
 GRUB configs — `/boot/grub2/grub.cfg` (BIOS) and `/EFI/BOOT/grub.cfg` (UEFI) —
-carrying an autoinstall entry that points at it with `inst.ks=cdrom:/ks.cfg`.
+carrying autoinstall entries for optical media (`inst.ks=cdrom:/ks.cfg`) and
+USB (`inst.ks=hd:LABEL=Rocky-10-3-x86_64-dvd:/ks.cfg`).
 
 Boot it in a VM or write it to physical media. Nothing else to attach.
 
@@ -100,6 +101,9 @@ vendor's ISO.
   target.** That is why the `%pre` loop in the supplied Kickstarts skips any
   device labelled `OEMDRV` before `clearpart --all` runs. Removing that guard
   wipes your kickstart mid-install.
+- **Multiple fixed disks stop the install.** Set `INSTALL_DISK` in the
+  Kickstart's `%pre` section to the target's `disk/by-id/...` path before
+  building the seed. See [README.md](README.md#preparation).
 - **`oemdrv.img` ends up owned by root**, since `make oemdrv` needs sudo.
   `make clean` still removes it — removal depends on write permission of the
   directory, not ownership of the file.

@@ -25,9 +25,17 @@ user --name=rocky --gecos="Rocky" --groups=wheel --iscrypted --password=$6$CWdqB
 
 : > /tmp/disk-include
 
+# Set to a persistent disk path such as disk/by-id/ata-MODEL_SERIAL when
+# installing on a machine with more than one fixed disk.
+INSTALL_DISK=""
+requested_device=""
+if [ -n "$INSTALL_DISK" ] ; then
+    requested_device=$(readlink -f "/dev/$INSTALL_DISK") || exit 1
+fi
+candidate_count=0
+candidate_names=""
+
 for dev in /sys/block/* ; do
-    # An unmatched glob leaves the literal "/sys/block/*" in $dev, which falls
-    # through every filter below and writes "ignoredisk --only-use=*".
     [ -d "$dev" ] || continue
     name=${dev##*/}
     case "$name" in
@@ -35,16 +43,19 @@ for dev in /sys/block/* ; do
     esac
     [ "$(cat "$dev/removable" 2>/dev/null)" = "1" ] && continue
     lsblk -no LABEL "/dev/$name" 2>/dev/null | grep -qx OEMDRV && continue
-    echo "ignoredisk --only-use=$name" > /tmp/disk-include
-    break
+    [ -n "$requested_device" ] && [ "$requested_device" != "/dev/$name" ] && continue
+    candidate_count=$((candidate_count + 1))
+    candidate_names="$candidate_names $name"
+    selected_name=$name
 done
 
-if [ ! -s /tmp/disk-include ] ; then
-    echo "ERROR: no install target found." >&2
-    echo "Every disk was removable, or the only one attached is the OEMDRV seed." >&2
-    echo "Attach a fixed disk, or pin one with 'ignoredisk --only-use=' in the kickstart." >&2
+if [ "$candidate_count" -ne 1 ] ; then
+    echo "ERROR: expected one install disk, found $candidate_count:$candidate_names" >&2
+    echo "Set INSTALL_DISK in the %pre script to a disk/by-id path to select one." >&2
     exit 1
 fi
+
+echo "ignoredisk --only-use=${INSTALL_DISK:-$selected_name}" > /tmp/disk-include
 
 if [ -d /sys/firmware/efi ] ; then
     echo 'part /boot/efi --fstype=efi --size=1024 --fsoptions="umask=0077,shortname=winnt"' \
